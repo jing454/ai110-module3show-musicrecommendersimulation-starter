@@ -78,6 +78,29 @@ def load_songs(csv_path: str) -> List[Dict]:
 
     return songs
 
+# --- Feature weights (see README.md "SCORING ALGORITHM (MAX)") ---
+# Tuning note: energy is doubled (12 -> 24) and genre is reduced (30 -> 15) so
+# a strong energy/mood match can outweigh a bare genre match. This is what flips
+# the "Genre Trap" edge case toward the song that fits the user's actual vibe.
+WEIGHT_GENRE = 15.0
+WEIGHT_MOOD = 22.0
+WEIGHT_ENERGY = 24.0
+WEIGHT_VALENCE = 10.0
+WEIGHT_DANCEABILITY = 8.0
+WEIGHT_TEMPO = 8.0
+
+# Highest score any song can reach (all weights fully earned). Computed from the
+# weights above so it stays correct whenever a weight is tuned.
+MAX_SCORE = (
+    WEIGHT_GENRE
+    + WEIGHT_MOOD
+    + WEIGHT_ENERGY
+    + WEIGHT_VALENCE
+    + WEIGHT_DANCEABILITY
+    + WEIGHT_TEMPO
+)
+
+
 def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     """
     Scores a single song against user preferences.
@@ -92,18 +115,18 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
 
     # --- Categorical: exact match or nothing ---
     if "genre" in user_prefs and song.get("genre") == user_prefs["genre"]:
-        score += 30.0
-        reasons.append(f"genre match (+30.0)")
+        score += WEIGHT_GENRE
+        reasons.append(f"genre match (+{WEIGHT_GENRE:.1f})")
 
     if "mood" in user_prefs and song.get("mood") == user_prefs["mood"]:
-        score += 22.0
-        reasons.append(f"mood match (+22.0)")
+        score += WEIGHT_MOOD
+        reasons.append(f"mood match (+{WEIGHT_MOOD:.1f})")
 
     # --- Numeric (0-1 scale): weight * (1 - abs(diff)) ---
     numeric_features = [
-        ("energy", 12.0),
-        ("valence", 10.0),
-        ("danceability", 8.0),
+        ("energy", WEIGHT_ENERGY),
+        ("valence", WEIGHT_VALENCE),
+        ("danceability", WEIGHT_DANCEABILITY),
     ]
     for feature, weight in numeric_features:
         if feature in user_prefs and feature in song:
@@ -119,7 +142,7 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
         norm_song = (song["tempo_bpm"] - min_bpm) / span
         norm_target = (user_prefs["tempo_bpm"] - min_bpm) / span
         closeness = max(0.0, 1.0 - abs(norm_song - norm_target))
-        points = 8.0 * closeness
+        points = WEIGHT_TEMPO * closeness
         score += points
         reasons.append(f"tempo closeness (+{points:.1f})")
 
